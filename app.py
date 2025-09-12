@@ -485,7 +485,11 @@ with tab4:
         numeric_columns = ['entry_price', 'exit_price', 'PNL', 'PNL_percentage', 'holding_period']
         for col in numeric_columns:
             if col in display_df.columns:
-                display_df[col] = display_df[col].round(4)
+                if col in ['entry_price', 'exit_price']:
+                    # Для цен показываем больше знаков после запятой для маленьких чисел
+                    display_df[col] = display_df[col].apply(lambda x: f"{x:.8f}" if abs(x) < 0.001 else f"{x:.6f}")
+                else:
+                    display_df[col] = display_df[col].round(4)
         
         st.dataframe(
             display_df,
