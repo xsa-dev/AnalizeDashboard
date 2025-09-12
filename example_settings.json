@@ -1,0 +1,35 @@
+{
+  "selected_symbols": [
+    "XLM-USDT",
+    "BONK-USDT",
+    "HBAR-USDT",
+    "DOGE-USDT",
+    "SOL-USDT",
+    "SUI-USDT",
+    "ONDO-USDT",
+    "AAVE-USDT",
+    "AVAX-USDT",
+    "INJ-USDT"
+  ],
+  "selected_strategies": [
+    "CloudScalper2024",
+    "TemaTrendFollowing",
+    "AlligatorV2"
+  ],
+  "start_date": "2025-05-01",
+  "end_date": "2025-07-31",
+  "chart_type": "PNL по сделкам",
+  "show_columns": [
+    "symbol",
+    "strategy_name",
+    "type",
+    "entry_price",
+    "exit_price",
+    "PNL",
+    "PNL_percentage",
+    "holding_period",
+    "opened_at"
+  ],
+  "max_rows": 100,
+  "export_timestamp": "2025-09-12T13:57:01.033772"
+}
