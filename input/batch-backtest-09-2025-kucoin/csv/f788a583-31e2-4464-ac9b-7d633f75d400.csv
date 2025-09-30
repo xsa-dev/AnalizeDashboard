@@ -1,2 +1,0 @@
-"id","strategy_name","symbol","exchange","type","entry_price","exit_price","qty","fee","size","PNL","PNL_percentage","holding_period","opened_at","closed_at"
-"a4740b29-be4a-4ef6-bc84-c01999ebdc02","ExampleStrategy","CFX-USDT","KuCoin Spot","long","0.1709","0.2148","58513.75","22.568753375","9999.999875","2546.1848716249997","25.46184903452311","17744400.0","1736262000000.0","1754006400000.0"
