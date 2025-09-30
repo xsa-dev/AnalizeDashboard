@@ -41,6 +41,28 @@ def export_settings(selected_symbols, selected_strategies, start_date, end_date,
     }
     return json.dumps(settings, ensure_ascii=False, indent=2)
 
+def save_default_settings(selected_symbols, selected_strategies, start_date, end_date, chart_type, show_columns, max_rows, data_folder):
+    """Сохраняет текущие настройки как настройки по умолчанию в example_settings.json."""
+    settings = {
+        "data_folder": data_folder,
+        "selected_symbols": selected_symbols,
+        "selected_strategies": selected_strategies,
+        "start_date": start_date.strftime('%Y-%m-%d') if start_date else None,
+        "end_date": end_date.strftime('%Y-%m-%d') if end_date else None,
+        "chart_type": chart_type,
+        "show_columns": show_columns,
+        "max_rows": max_rows,
+        "saved_as_default": True,
+        "saved_timestamp": datetime.now().isoformat()
+    }
+    
+    try:
+        with open('example_settings.json', 'w', encoding='utf-8') as f:
+            json.dump(settings, f, ensure_ascii=False, indent=2)
+        return True, "Настройки успешно сохранены как настройки по умолчанию!"
+    except Exception as e:
+        return False, f"Ошибка при сохранении настроек: {str(e)}"
+
 def import_settings(uploaded_file):
     """Импортирует настройки из JSON файла."""
     try:
@@ -143,14 +165,46 @@ st.sidebar.info(f"""
 **CSV файлов:** {len(csv_files)}
 """)
 
-# Кнопка для сброса настроек при смене папки
-if st.sidebar.button("🔄 Сбросить настройки для новой папки", help="Очистить все импортированные настройки"):
-    # Очищаем session state
-    for key in ['imported_symbols', 'imported_strategies', 'imported_start_date', 'imported_end_date', 'imported_chart_type', 'imported_show_columns', 'imported_max_rows']:
-        if key in st.session_state:
-            del st.session_state[key]
-    st.success("✅ Настройки сброшены!")
-    st.rerun()
+# Опции для работы с настройками
+st.sidebar.markdown("**⚙️ Управление настройками:**")
+
+col_reset1, col_reset2 = st.sidebar.columns(2)
+
+with col_reset1:
+    if st.button("🔄 Сбросить", help="Очистить все импортированные настройки"):
+        # Очищаем session state
+        for key in ['imported_symbols', 'imported_strategies', 'imported_start_date', 'imported_end_date', 'imported_chart_type', 'imported_show_columns', 'imported_max_rows']:
+            if key in st.session_state:
+                del st.session_state[key]
+        st.success("✅ Настройки сброшены!")
+        st.rerun()
+
+with col_reset2:
+    if st.button("💾 Сохранить", help="Сохранить текущие настройки как настройки по умолчанию"):
+        # Получаем текущие настройки из session state
+        current_symbols = st.session_state.get('imported_symbols', symbols[:5] if len(symbols) > 5 else symbols)
+        current_strategies = st.session_state.get('imported_strategies', strategies[:3] if len(strategies) > 3 else strategies)
+        current_start_date = st.session_state.get('imported_start_date', min_date.date() if min_date else None)
+        current_end_date = st.session_state.get('imported_end_date', max_date.date() if max_date else None)
+        current_chart_type = st.session_state.get('imported_chart_type', "PNL по сделкам")
+        current_show_columns = st.session_state.get('imported_show_columns', ['symbol', 'strategy_name', 'type', 'entry_price', 'exit_price', 'PNL', 'PNL_percentage', 'holding_period', 'opened_at'])
+        current_max_rows = st.session_state.get('imported_max_rows', 100)
+        
+        success, message = save_default_settings(
+            current_symbols,
+            current_strategies,
+            current_start_date,
+            current_end_date,
+            current_chart_type,
+            current_show_columns,
+            current_max_rows,
+            selected_folder
+        )
+        
+        if success:
+            st.success(message)
+        else:
+            st.error(message)
 
 st.sidebar.markdown("---")
 
@@ -171,6 +225,11 @@ def load_default_settings():
             with open('example_settings.json', 'r', encoding='utf-8') as f:
                 default_settings = json.load(f)
             
+            # Проверяем, есть ли сохраненная папка в настройках
+            saved_data_folder = default_settings.get('data_folder')
+            if saved_data_folder and saved_data_folder != selected_folder:
+                st.info(f"📁 В настройках по умолчанию сохранена папка '{saved_data_folder}', но выбрана '{selected_folder}'. Настройки будут применены с учетом текущей папки.")
+            
             # Применяем настройки по умолчанию
             symbols = loader.get_unique_symbols()
             strategies = loader.get_unique_strategies()
@@ -190,7 +249,8 @@ def load_default_settings():
                 st.session_state.imported_max_rows = new_max_rows
                 
                 # Показываем уведомление о загрузке настроек по умолчанию
-                st.info(f"🎯 Загружены настройки по умолчанию для папки '{selected_folder}'")
+                saved_timestamp = default_settings.get('saved_timestamp', 'неизвестно')
+                st.info(f"🎯 Загружены настройки по умолчанию для папки '{selected_folder}' (сохранены: {saved_timestamp})")
         except FileNotFoundError:
             # Файл не найден, это нормально
             pass
@@ -607,6 +667,42 @@ with tab5:
             help="Скачивает текущие настройки фильтров и отображения"
         )
         
+        # Кнопка сохранения как настройки по умолчанию
+        st.markdown("---")
+        st.markdown("**💾 Сохранить как настройки по умолчанию:**")
+        
+        col_save1, col_save2 = st.columns(2)
+        
+        with col_save1:
+            if st.button("🎯 Сохранить как настройки по умолчанию", type="primary", help="Перезаписывает example_settings.json текущими настройками"):
+                success, message = save_default_settings(
+                    current_settings["selected_symbols"],
+                    current_settings["selected_strategies"],
+                    start_date,
+                    end_date,
+                    current_settings["chart_type"],
+                    current_settings["show_columns"],
+                    current_settings["max_rows"],
+                    current_settings["data_folder"]
+                )
+                
+                if success:
+                    st.success(message)
+                    st.info("🔄 Настройки по умолчанию обновлены! При следующем запуске приложения будут загружены эти настройки.")
+                else:
+                    st.error(message)
+        
+        with col_save2:
+            if st.button("📋 Показать текущие настройки по умолчанию", help="Показывает содержимое example_settings.json"):
+                try:
+                    with open('example_settings.json', 'r', encoding='utf-8') as f:
+                        default_settings = json.load(f)
+                    st.json(default_settings)
+                except FileNotFoundError:
+                    st.warning("Файл example_settings.json не найден!")
+                except Exception as e:
+                    st.error(f"Ошибка при чтении файла: {str(e)}")
+        
         # Показываем текущие настройки
         st.markdown("**Текущие настройки:**")
         st.json(current_settings)
@@ -738,12 +834,18 @@ with tab5:
     1. Выберите папку с данными в боковой панели
     2. При первом запуске автоматически загружаются настройки из example_settings.json
     3. Настройте фильтры и отображение по своему усмотрению
-    4. Перейдите на вкладку "Настройки"
-    5. Нажмите "Скачать настройки" для сохранения
-    6. Для загрузки выберите файл и нажмите "Применить настройки"
+    4. **Сохраните настройки как настройки по умолчанию:**
+       - В боковой панели: кнопка "💾 Сохранить"
+       - В разделе "Настройки": кнопка "🎯 Сохранить как настройки по умолчанию"
+    5. Для экспорта: нажмите "Скачать настройки"
+    6. Для загрузки: выберите файл и нажмите "Применить настройки"
     7. Используйте кнопку "🎯 Настройки по умолчанию" для возврата к исходным настройкам
     
-    **Примечание:** Настройки привязаны к конкретной папке с данными. При смене папки некоторые настройки могут быть недоступны.
+    **Важно:** 
+    - При сохранении как настройки по умолчанию перезаписывается файл `example_settings.json`
+    - Настройки привязаны к конкретной папке с данными
+    - При смене папки некоторые настройки могут быть недоступны
+    - Приложение автоматически адаптирует настройки к доступным символам и стратегиям
     """)
 
 # Футер

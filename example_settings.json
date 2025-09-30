@@ -1,23 +1,15 @@
 {
+  "data_folder": "kucoin-09-2025-1",
   "selected_symbols": [
-    "XLM-USDT",
-    "BONK-USDT",
-    "HBAR-USDT",
-    "DOGE-USDT",
-    "SOL-USDT",
-    "SUI-USDT",
-    "ONDO-USDT",
-    "AAVE-USDT",
-    "AVAX-USDT",
-    "INJ-USDT"
+    "ACH-USDT",
+    "CLV-USDT"
   ],
   "selected_strategies": [
-    "CloudScalper2024",
     "TemaTrendFollowing",
     "AlligatorV2"
   ],
   "start_date": "2025-05-01",
-  "end_date": "2025-07-31",
+  "end_date": "2025-05-31",
   "chart_type": "PNL по сделкам",
   "show_columns": [
     "symbol",
@@ -31,5 +23,6 @@
     "opened_at"
   ],
   "max_rows": 100,
-  "export_timestamp": "2025-09-12T13:57:01.033772"
+  "saved_as_default": true,
+  "saved_timestamp": "2025-09-30T17:50:12.574487"
 }
