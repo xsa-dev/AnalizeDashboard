@@ -10,7 +10,7 @@ import os
 import json
 from datetime import datetime
 
-from data_loader import BacktestDataLoader
+from data_loader import BacktestDataLoader, get_available_data_folders
 from visualizations import BacktestVisualizer
 
 # Настройка страницы
@@ -26,9 +26,10 @@ st.title("📊 Backtest Dashboard")
 st.markdown("---")
 
 # Функции для работы с настройками
-def export_settings(selected_symbols, selected_strategies, start_date, end_date, chart_type, show_columns, max_rows):
+def export_settings(selected_symbols, selected_strategies, start_date, end_date, chart_type, show_columns, max_rows, data_folder=None):
     """Экспортирует текущие настройки в JSON формат."""
     settings = {
+        "data_folder": data_folder,
         "selected_symbols": selected_symbols,
         "selected_strategies": selected_strategies,
         "start_date": start_date.strftime('%Y-%m-%d') if start_date else None,
@@ -53,6 +54,11 @@ def apply_settings(settings, symbols, strategies, min_date, max_date):
     """Применяет загруженные настройки к интерфейсу."""
     if not settings:
         return None, None, None, None, None, None, None
+    
+    # Проверяем совместимость папки с данными
+    settings_data_folder = settings.get('data_folder')
+    if settings_data_folder and settings_data_folder != selected_folder:
+        st.warning(f"⚠️ Настройки созданы для папки '{settings_data_folder}', а сейчас выбрана '{selected_folder}'. Некоторые настройки могут быть недоступны.")
     
     # Валидация и применение настроек
     selected_symbols = settings.get('selected_symbols', symbols[:5] if len(symbols) > 5 else symbols)
@@ -103,20 +109,64 @@ def apply_settings(settings, symbols, strategies, min_date, max_date):
 
 # Инициализация компонентов
 @st.cache_resource
-def initialize_components():
+def initialize_components(data_folder: str):
     """Инициализирует компоненты приложения."""
-    data_folder = "input/batch-backtest-09-2025"
     loader = BacktestDataLoader(data_folder)
     visualizer = BacktestVisualizer()
     return loader, visualizer
 
-# Загружаем данные
-loader, visualizer = initialize_components()
+# Получаем доступные папки с данными
+available_folders = get_available_data_folders()
+
+if not available_folders:
+    st.error("❌ Не найдено папок с данными в директории input!")
+    st.stop()
+
+# Боковая панель с выбором данных
+st.sidebar.header("📁 Выбор данных")
+
+# Выбор папки с данными
+selected_folder = st.sidebar.selectbox(
+    "Выберите набор данных:",
+    options=available_folders,
+    help="Выберите папку с результатами бэктестов для анализа"
+)
+
+# Показываем информацию о выбранной папке
+folder_path = os.path.join("input", selected_folder)
+json_files = [f for f in os.listdir(folder_path) if f.endswith('.json')]
+csv_files = [f for f in os.listdir(folder_path) if f.endswith('.csv')]
+
+st.sidebar.info(f"""
+**Выбранная папка:** `{selected_folder}`  
+**JSON файлов:** {len(json_files)}  
+**CSV файлов:** {len(csv_files)}
+""")
+
+# Кнопка для сброса настроек при смене папки
+if st.sidebar.button("🔄 Сбросить настройки для новой папки", help="Очистить все импортированные настройки"):
+    # Очищаем session state
+    for key in ['imported_symbols', 'imported_strategies', 'imported_start_date', 'imported_end_date', 'imported_chart_type', 'imported_show_columns', 'imported_max_rows']:
+        if key in st.session_state:
+            del st.session_state[key]
+    st.success("✅ Настройки сброшены!")
+    st.rerun()
+
+st.sidebar.markdown("---")
+
+# Инициализируем компоненты с выбранной папкой
+data_folder_path = os.path.join("input", selected_folder)
+loader, visualizer = initialize_components(data_folder_path)
+
+# Добавляем информацию о выбранной папке в основной контент
+st.subheader(f"📁 Анализ данных: `{selected_folder}`")
 
 # Функция для загрузки настроек по умолчанию
 def load_default_settings():
     """Загружает настройки по умолчанию из example_settings.json если они еще не загружены."""
-    if not any(key in st.session_state for key in ['imported_symbols', 'imported_strategies', 'imported_start_date', 'imported_end_date']):
+    # Проверяем, что настройки еще не загружены для текущей папки
+    current_folder_key = f'imported_symbols_{selected_folder}'
+    if not any(key in st.session_state for key in [current_folder_key, 'imported_symbols', 'imported_strategies', 'imported_start_date', 'imported_end_date']):
         try:
             with open('example_settings.json', 'r', encoding='utf-8') as f:
                 default_settings = json.load(f)
@@ -140,7 +190,7 @@ def load_default_settings():
                 st.session_state.imported_max_rows = new_max_rows
                 
                 # Показываем уведомление о загрузке настроек по умолчанию
-                st.info("🎯 Загружены настройки по умолчанию из example_settings.json")
+                st.info(f"🎯 Загружены настройки по умолчанию для папки '{selected_folder}'")
         except FileNotFoundError:
             # Файл не найден, это нормально
             pass
@@ -153,7 +203,7 @@ load_default_settings()
 
 # Проверяем наличие данных
 try:
-    df = loader.load_all_data()
+    df = loader.load_all_data(data_folder_path)
     if df.empty:
         st.error("❌ Не найдено данных для анализа!")
         st.stop()
@@ -171,7 +221,11 @@ min_date, max_date = loader.get_date_range()
 
 # Фильтр по символам
 # Проверяем, есть ли импортированные настройки
-default_symbols = st.session_state.get('imported_symbols', symbols[:5] if len(symbols) > 5 else symbols)
+imported_symbols = st.session_state.get('imported_symbols', [])
+# Фильтруем импортированные символы, оставляя только те, что есть в текущих данных
+valid_imported_symbols = [s for s in imported_symbols if s in symbols]
+default_symbols = valid_imported_symbols if valid_imported_symbols else (symbols[:5] if len(symbols) > 5 else symbols)
+
 selected_symbols = st.sidebar.multiselect(
     "Выберите монеты:",
     options=symbols,
@@ -181,7 +235,11 @@ selected_symbols = st.sidebar.multiselect(
 
 # Фильтр по стратегиям
 # Проверяем, есть ли импортированные настройки
-default_strategies = st.session_state.get('imported_strategies', strategies[:3] if len(strategies) > 3 else strategies)
+imported_strategies = st.session_state.get('imported_strategies', [])
+# Фильтруем импортированные стратегии, оставляя только те, что есть в текущих данных
+valid_imported_strategies = [s for s in imported_strategies if s in strategies]
+default_strategies = valid_imported_strategies if valid_imported_strategies else (strategies[:3] if len(strategies) > 3 else strategies)
+
 selected_strategies = st.sidebar.multiselect(
     "Выберите стратегии:",
     options=strategies,
@@ -518,6 +576,7 @@ with tab5:
         
         # Получаем текущие настройки
         current_settings = {
+            "data_folder": selected_folder,
             "selected_symbols": selected_symbols,
             "selected_strategies": selected_strategies,
             "start_date": start_date.strftime('%Y-%m-%d') if start_date else None,
@@ -535,7 +594,8 @@ with tab5:
             end_date,
             current_settings["chart_type"],
             current_settings["show_columns"],
-            current_settings["max_rows"]
+            current_settings["max_rows"],
+            current_settings["data_folder"]
         )
         
         # Кнопка скачивания
@@ -666,6 +726,7 @@ with tab5:
     st.subheader("ℹ️ Информация")
     st.markdown("""
     **Что сохраняется в настройках:**
+    - Папка с данными (data_folder)
     - Выбранные символы (монеты)
     - Выбранные стратегии
     - Временной период (даты начала и окончания)
@@ -674,12 +735,15 @@ with tab5:
     - Максимальное количество строк в таблице
     
     **Как использовать:**
-    1. При первом запуске автоматически загружаются настройки из example_settings.json
-    2. Настройте фильтры и отображение по своему усмотрению
-    3. Перейдите на вкладку "Настройки"
-    4. Нажмите "Скачать настройки" для сохранения
-    5. Для загрузки выберите файл и нажмите "Применить настройки"
-    6. Используйте кнопку "🎯 Настройки по умолчанию" для возврата к исходным настройкам
+    1. Выберите папку с данными в боковой панели
+    2. При первом запуске автоматически загружаются настройки из example_settings.json
+    3. Настройте фильтры и отображение по своему усмотрению
+    4. Перейдите на вкладку "Настройки"
+    5. Нажмите "Скачать настройки" для сохранения
+    6. Для загрузки выберите файл и нажмите "Применить настройки"
+    7. Используйте кнопку "🎯 Настройки по умолчанию" для возврата к исходным настройкам
+    
+    **Примечание:** Настройки привязаны к конкретной папке с данными. При смене папки некоторые настройки могут быть недоступны.
     """)
 
 # Футер

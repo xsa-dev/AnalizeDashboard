@@ -10,6 +10,31 @@ from datetime import datetime
 import streamlit as st
 
 
+def get_available_data_folders(input_dir: str = "input") -> List[str]:
+    """
+    Получает список доступных папок с данными бэктестов.
+    
+    Args:
+        input_dir: Путь к основной папке input
+        
+    Returns:
+        List[str]: Список названий папок с данными
+    """
+    if not os.path.exists(input_dir):
+        return []
+    
+    folders = []
+    for item in os.listdir(input_dir):
+        item_path = os.path.join(input_dir, item)
+        if os.path.isdir(item_path):
+            # Проверяем, есть ли в папке JSON файлы
+            json_files = [f for f in os.listdir(item_path) if f.endswith('.json')]
+            if json_files:
+                folders.append(item)
+    
+    return sorted(folders)
+
+
 class BacktestDataLoader:
     """Класс для загрузки и обработки данных бэктестов."""
     
@@ -25,7 +50,7 @@ class BacktestDataLoader:
         self.raw_data = []
     
     @st.cache_data
-    def load_all_data(_self) -> pd.DataFrame:
+    def load_all_data(_self, data_folder: str) -> pd.DataFrame:
         """
         Загружает все JSON-файлы из папки и объединяет в DataFrame.
         
@@ -75,13 +100,13 @@ class BacktestDataLoader:
     def get_unique_symbols(self) -> List[str]:
         """Возвращает список уникальных символов."""
         if self.df is None:
-            self.df = self.load_all_data()
+            self.df = self.load_all_data(self.data_folder)
         return sorted(self.df['symbol'].unique().tolist())
     
     def get_unique_strategies(self) -> List[str]:
         """Возвращает список уникальных стратегий."""
         if self.df is None:
-            self.df = self.load_all_data()
+            self.df = self.load_all_data(self.data_folder)
         return sorted(self.df['strategy_name'].unique().tolist())
     
     def get_date_range(self) -> tuple:
@@ -92,7 +117,7 @@ class BacktestDataLoader:
             tuple: (min_date, max_date) в формате datetime
         """
         if self.df is None:
-            self.df = self.load_all_data()
+            self.df = self.load_all_data(self.data_folder)
         
         if self.df.empty:
             return None, None
@@ -117,7 +142,7 @@ class BacktestDataLoader:
             pd.DataFrame: Отфильтрованные данные
         """
         if self.df is None:
-            self.df = self.load_all_data()
+            self.df = self.load_all_data(self.data_folder)
         
         filtered_df = self.df.copy()
         
@@ -149,7 +174,7 @@ class BacktestDataLoader:
             pd.DataFrame: Метрики по стратегиям
         """
         if df is None:
-            df = self.df if self.df is not None else self.load_all_data()
+            df = self.df if self.df is not None else self.load_all_data(self.data_folder)
         
         if df.empty:
             return pd.DataFrame()
@@ -215,7 +240,7 @@ class BacktestDataLoader:
             pd.DataFrame: Метрики по символам
         """
         if df is None:
-            df = self.df if self.df is not None else self.load_all_data()
+            df = self.df if self.df is not None else self.load_all_data(self.data_folder)
         
         if df.empty:
             return pd.DataFrame()
@@ -279,7 +304,7 @@ class BacktestDataLoader:
             pd.DataFrame: Данные с накопленным PNL
         """
         if df is None:
-            df = self.df if self.df is not None else self.load_all_data()
+            df = self.df if self.df is not None else self.load_all_data(self.data_folder)
         
         if df.empty:
             return pd.DataFrame()
@@ -304,7 +329,7 @@ class BacktestDataLoader:
             Dict: Словарь с общими метриками
         """
         if df is None:
-            df = self.df if self.df is not None else self.load_all_data()
+            df = self.df if self.df is not None else self.load_all_data(self.data_folder)
         
         if df.empty:
             return {}
